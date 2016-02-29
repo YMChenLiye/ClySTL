@@ -1,2 +1,5 @@
 # ClySTL
-a simple c++ stl
+简易的c++标准库
+
+#开发计划
+
