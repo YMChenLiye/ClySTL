@@ -1,144 +1,144 @@
 #ifndef list_h
 #define list_h
-#include <memory>
 
 template<typename T>
-class list{
-	public:
-		struct node{
-			T val;
-			T* next;
-			T* prev;
-		};
-		struct listIterator{
-			typedef struct node* nodePtr;
-			nodePtr p;
-
-			explicit listIterator(nodePtr ptr = nullptr):p(ptr) { }
-			listIterator& operator++()
-			{
-				p=p->next;
-				return *this;
-			}
-			listIterator& operator++(int)
-			{
-				listIterator ret=*this;
-				p=p->next;
-				return ret;
-			}
-			listIterator& operator--()
-			{
-				p=p->prev;
-				return *this;
-			}
-			listIterator& operator--(int)
-			{
-				listIterator ret=*this;
-				p=p->prev;
-				return ret;
-			}
-
-			T& operator*() { return p->val; }
-			T* operator->() { return &(operator*()); }
-		};
-
-
-		typedef T										value_type;
-		typedef Allocator 								allocator_type;
-		typedef size_t 									size_type;
-		typedef std::ptrdiff_t 							difference_type;
-		typedef value_type& 							reference;
-		typedef const value_type& 						const_reference;
-		typedef struct node * 							nodePtr;
-
+class List{
 	private:
-		listIterator begin_;
-		listIterator end_;
-		size_type count;
-		std::allocator<struct node> allocNode;
-		std::allocator<struct listIterator> allocIter;
-		listIterator alloc_one()
+		struct Node{
+			T value;
+			struct Node *prev;
+			struct Node *next;
+			Node(const T& d=T(),Node *p=nullptr,Node * n=nullptr):value(d),prev(p),next(n) { }
+		};
+	public:
+		class const_iterator{
+			public:
+				const_iterator():current(nullptr) { }
+				const T& operator*() const { return retrieve() ; }
+				const_iterator & operator++()
+				{
+					current = current->next;
+					return *this;
+				}
+				const_iterator & operator++(int)
+				{
+					const_iterator ret=*this;
+					++(*this);
+					return ret; 
+				}
+
+				bool operator==(const const_iterator &rhs) const { return current == rhs.current; }
+				bool operator!=(const const_iterator &rhs) const { return !(*this == rhs); }
+
+			protected:
+				Node *current;
+				T& retrieve() const { return current->value; }
+				const_iterator (Node *p):current(p) { }
+				friend class List<T>;
+
+		};
+		class iterator:public const_iterator 
 		{
-			nodePtr p= allocNode.allocate(1);
-			listIterator iter=allocIter.allocate(1);
-			iter.p=p;
-			iter.p->val=T();
-			iter.p->prev=nullptr;
-			iter.p->next=nullptr;
-			return iter;
+			public:
+				iterator() { }
+				T& operator*() { return const_iterator::retrieve(); }
+				const T& operator*() const { return const_iterator::operator*(); }
+
+				iterator& operator++()
+				{
+					const_iterator::current = const_iterator::current->next;
+					return *this;
+				}
+				iterator operator++(int)
+				{
+					iterator ret = *this;
+					++(*this);
+					return ret;
+				}
+			protected:
+				iterator(Node *p):const_iterator(p) { }
+
+				friend	class List<T>;
+
+		};
+	public:
+		List() { init(); }
+		List(const List &rhs) { init(); *this = rhs; }
+		~List() { clear(); delete head; delete tail; }
+		const List & operator=(const List& rhs)
+		{
+			if(this == &rhs)
+				return *this;
+			clear();
+			for(const_iterator itr = rhs.begin(); itr != rhs.end();++itr)
+				push_back(*itr); 
+			return *this;
 		}
 
-	public:
-		//member function
-		list(): begin_(nullptr),end_(nullptr) { }
-		list(std::initializer_list<T> il);
-		list(const list& v);
-		list(list&& v);
-		list& operator=(const list& v);
-		list& operator=(list&& v);
+		iterator begin() { return iterator(head->next); }
+		const_iterator begin() const { return const_iterator( head->next ); }
+		iterator end() { return iterator(tail) ; }
+		const_iterator end() const { return const_iterator(tail); }
 
-		//Element access
-		reference front() const { return begin_.p->val; }
-		reference back() const { return end_.p->prev->val; }
+		int size() const { return theSize; }
+		bool empty() const { return size()==0 ; }
 
-		//Iterator
-		listIterator begin() { return begin_; }
-		const listIterator cbegin() const { return begin_; }
-		listIterator end() { return end_; }
-		const initializer_list cend() const { return end_; }
+		void clear() {
+			while(!empty())
+				pop_front();
+		}
+
+		T& front() { return *begin(); }
+		const T& front() const { return *begin(); }
+		T& back() { return *--end(); }
+		const T& back() const { return *--end(); }
+
+		void push_front(const T& x) { insert(begin(),x) ; }
+		void push_back(const T& x) { insert(end(),x) ; }
+		void pop_front() { erase(begin()); }
+		void pop_back() { erase(--end()); }
+
+		iterator insert(iterator itr,const T& x)
+		{
+			Node *p=itr.current;
+			theSize++;
+			Node *newNode = new Node(x,p->prev,p);
+			p->prev = p->prev->next = newNode;
+			return iterator(newNode);
+		}
+		iterator erase(iterator itr)
+		{
+			Node *p = itr.current;
+			iterator retVal(p->next);
+			p->prev->next = p->next;
+			p->next->prev = p->prev;
+			delete p;
+			theSize--;
+
+			return retVal;
 		
-		//Capacity
-		bool empty() const { return begin_==end_; }
-		size_type size() const { return count; }
+		}
+		iterator erase(iterator start,iterator end)
+		{
+			for(iterator itr = start;itr !=end; )
+				itr=erase(itr);
+			return end;
+		}
+	private:
+		int theSize;
+		Node *head;
+		Node *tail;
 
-		//Modifiers
-		void clear();
-		void push_back(value_type &val);
-		void push_front(value_type &val);
-		void pop_back();
-		void pop_front();
+		void init()
+		{
+			theSize = 0;
+			head = new Node;
+			tail = new Node;
+			head->next = tail;
+			tail->prev = head;
+		}
 };
 
-template<typename T>
-void list<T>::push_back(value_type &val)
-{
-	if(empty())
-	{
-		push_front(val);
-	}
 
-	listIterator ret = alloc_one();
-	nodePtr pos=ret.p;
-	pos->val = val;
-	nodePtr last=end_.p->prev;
-	pos->next = end_.p;
-	pos.prev = last;
-	last->next = pos;
-	end_.p->prev = pos;
-}
-
-template<typename T>
-void list<T>::push_front(value_type& val)
-{
-	listIterator ret = alloc_one();
-	nodePtr pos = ret.p;
-	pos->val = val;
-	if(empty())
-	{
-		begin_.p=pos;
-		end_.p->prev=pos;
-	}
-	nodePtr first=begin_.p;
-	begin_.p=pos;
-	pos->next = first;
-	first->prev = pos;
-}
-
-
-
-
-
-
-}
 
 #endif
